@@ -1,0 +1,21 @@
+[debug] [2025-11-22T05:14:41.246Z] ----------------------------------------------------------------------
+[debug] [2025-11-22T05:14:41.252Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\ADMIN\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy
+[debug] [2025-11-22T05:14:41.253Z] CLI Version:   14.26.0
+[debug] [2025-11-22T05:14:41.253Z] Platform:      win32
+[debug] [2025-11-22T05:14:41.253Z] Node Version:  v22.18.0
+[debug] [2025-11-22T05:14:41.254Z] Time:          Sat Nov 22 2025 13:14:41 GMT+0800 (Philippine Standard Time)
+[debug] [2025-11-22T05:14:41.254Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-11-22T05:14:41.484Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-22T05:14:41.485Z] > authorizing via signed-in user (lemon.sandicho@gmail.com)
+[debug] [2025-11-22T05:14:41.485Z] [iam] checking project financeapp-8f2a9 for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2025-11-22T05:14:41.486Z] Checked if tokens are valid: true, expires at: 1763790066866
+[debug] [2025-11-22T05:14:41.486Z] Checked if tokens are valid: true, expires at: 1763790066866
+[debug] [2025-11-22T05:14:41.487Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/financeapp-8f2a9:testIamPermissions [none]
+[debug] [2025-11-22T05:14:41.487Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/financeapp-8f2a9:testIamPermissions x-goog-quota-user=projects/financeapp-8f2a9
+[debug] [2025-11-22T05:14:41.487Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/financeapp-8f2a9:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-11-22T05:14:42.682Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/financeapp-8f2a9:testIamPermissions 200
+[debug] [2025-11-22T05:14:42.683Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/financeapp-8f2a9:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2025-11-22T05:14:42.684Z] Checked if tokens are valid: true, expires at: 1763790066866
+[debug] [2025-11-22T05:14:42.684Z] Checked if tokens are valid: true, expires at: 1763790066866
+[debug] [2025-11-22T05:14:42.685Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/financeapp-8f2a9 [none]
