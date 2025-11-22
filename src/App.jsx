@@ -1,4 +1,3 @@
-// src/App.jsx
 import { useState } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
@@ -15,31 +14,53 @@ import { useAuth } from "./context/AuthContext";
 
 function App() {
   const { user, loading } = useAuth();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
+  // Extract user name from user object
+  const userName = user?.displayName || user?.email?.split("@")[0] || "";
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
       {!user ? (
+        // Unauthenticated Routes
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="*" element={<Navigate to="/login" />} />
         </Routes>
       ) : (
-        <div className="flex min-h-screen">
+        // Authenticated Layout
+        <div className="flex h-screen overflow-hidden bg-gray-50">
           {/* Sidebar */}
-          <aside className={`bg-white shadow-lg transition-all duration-300 ${sidebarOpen ? "w-64" : "w-0"} overflow-hidden`}>
-            <Sidebar />
-          </aside>
+          <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
 
-          {/* Main content */}
-          <div className="flex-1 flex flex-col">
-            <Navbar toggleSidebar={toggleSidebar} userName={user?.displayName} />
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Navbar */}
+            <Navbar toggleSidebar={toggleSidebar} userName={userName} />
 
-            <main className="flex-1 overflow-y-auto bg-gray-100">
+            {/* Page Content */}
+            <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6 lg:p-8">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/expenses" element={<Expenses />} />
@@ -51,7 +72,6 @@ function App() {
               </Routes>
             </main>
           </div>
-
         </div>
       )}
     </Router>
