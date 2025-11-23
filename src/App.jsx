@@ -60,7 +60,7 @@ function App() {
             <Navbar toggleSidebar={toggleSidebar} userName={userName} />
 
             {/* Page Content */}
-            <main className="flex-1 overflow-y-auto bg-gray-100 p-4 md:p-6 lg:p-8">
+            <main className="flex-1 overflow-y-auto bg-gray-100">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/expenses" element={<Expenses />} />

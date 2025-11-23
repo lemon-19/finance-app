@@ -1,5 +1,5 @@
 import { db } from "../firebase";
-import { collection, addDoc, getDocs, updateDoc, doc, deleteDoc, Timestamp, query, where, orderBy } from "firebase/firestore";
+import { collection, addDoc, getDocs, updateDoc, doc, deleteDoc, Timestamp, query, where, orderBy, limit, startAfter } from "firebase/firestore";
 
 // Add expense
 export const addExpense = async (uid, category, amount, description) => {
@@ -25,6 +25,36 @@ export const getExpenses = async (uid) => {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
     console.error("Error fetching expenses:", error);
+  }
+};
+
+// Get expenses for user (Paginated fetch)
+export const getExpensesPaginated = async (uid, limitNum = 10, lastDoc = null) => {
+  try {
+    let q;
+    if (lastDoc) {
+      q = query(
+        collection(db, "expenses"),
+        where("uid", "==", uid),
+        orderBy("createdAt", "desc"),
+        startAfter(lastDoc),
+        limit(limitNum)
+      );
+    } else {
+      q = query(
+        collection(db, "expenses"),
+        where("uid", "==", uid),
+        orderBy("createdAt", "desc"),
+        limit(limitNum)
+      );
+    }
+
+    const snapshot = await getDocs(q);
+    const expenses = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+    return { expenses, lastVisible };
+  } catch (error) {
+    console.error("Error fetching paginated expenses:", error);
   }
 };
 
