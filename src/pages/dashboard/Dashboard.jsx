@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { DollarSign, CreditCard, FileText, TrendingUp, TrendingDown, AlertCircle, Calendar, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { 
+  DollarSign, CreditCard, FileText, TrendingUp, TrendingDown, AlertCircle, Calendar, ArrowUpRight, ArrowDownRight 
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getExpenses } from "../../api/expenses";
 import { getIncome } from "../../api/income";
@@ -32,6 +34,7 @@ export default function Dashboard() {
         setExpenses(expData || []);
         setIncome(incData || []);
         setBills(billsData || []);
+
         // Calculate previous period data for trend comparison
         const now = new Date();
         const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -92,12 +95,21 @@ export default function Dashboard() {
   const filteredExpenses = filterByTimeRange(expenses);
   const filteredIncome = filterByTimeRange(income);
 
+  // Bills based on status
+  const unpaidBills = bills.filter(b => b.status === "unpaid");
+  const paidBills = bills.filter(b => b.status === "paid");
+
   // Calculate totals
   const totalIncome = filteredIncome.reduce((acc, i) => acc + Number(i.amount), 0);
   const totalExpenses = filteredExpenses.reduce((acc, e) => acc + Number(e.amount), 0);
-  const totalBills = bills.reduce((acc, b) => acc + Number(b.amount), 0);
+  const totalBills = unpaidBills.reduce((acc, b) => acc + Number(b.amount), 0);
   const balance = totalIncome - totalExpenses;
-  const savingsRate = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : 0;
+
+  // Adjust balance for paid bills
+  const totalPaidBills = paidBills.reduce((acc, b) => acc + Number(b.amount), 0);
+  const adjustedBalance = balance - totalPaidBills;
+
+  const savingsRate = totalIncome > 0 ? ((adjustedBalance / totalIncome) * 100).toFixed(1) : 0;
 
   // Calculate trends
   const incomeTrend = previousData.income > 0 
@@ -107,8 +119,8 @@ export default function Dashboard() {
     ? (((totalExpenses - previousData.expenses) / previousData.expenses) * 100).toFixed(1)
     : 0;
 
-  // Get upcoming bills (next 7 days)
-  const upcomingBills = bills
+  // Upcoming bills (next 7 days) - unpaid only
+  const upcomingBills = unpaidBills
     .filter(bill => {
       const dueDate = new Date(bill.dueDate);
       const today = new Date();
@@ -171,8 +183,8 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Page Header - Removed the redundant white box, keeping it clean */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200">
+      {/* Page Header */}
+      <div className="bg-linear-to-r from-blue-50 to-blue-100 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -196,18 +208,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main Content with improved spacing */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         
-        {/* Main Stats Grid - Increased gap and added breathing room */}
+        {/* Main Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:gap-6 mb-8">
           {/* Balance Card */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform duration-200">
+          <div className="bg-linear-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg p-6 text-white transform hover:scale-105 transition-transform duration-200">
             <div className="flex items-center justify-between mb-3">
               <p className="text-blue-100 text-sm font-medium">Current Balance</p>
               <TrendingUp className="text-blue-200" size={20} />
             </div>
-            <h2 className="text-3xl font-bold mb-2">{formatCurrency(balance)}</h2>
+            <h2 className="text-3xl font-bold mb-2">{formatCurrency(adjustedBalance)}</h2>
             <p className="text-blue-100 text-xs">Net worth this {timeRange === 'week' ? 'week' : timeRange === 'month' ? 'month' : 'year'}</p>
           </div>
 
@@ -250,7 +262,7 @@ export default function Dashboard() {
                 <FileText className="text-orange-600" size={22} />
               </div>
               <span className="text-xs font-semibold text-gray-600 bg-gray-100 px-2.5 py-1 rounded-full">
-                {bills.length} bills
+                {unpaidBills.length} bills
               </span>
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-1.5">{formatCurrency(totalBills)}</h3>
@@ -258,7 +270,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Secondary Stats - Better spacing */}
+        {/* Secondary Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-6 mb-8">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-200">
             <div className="flex items-center gap-4">
@@ -293,15 +305,14 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500 font-medium mb-1">Budget Remaining</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(Math.max(0, balance))}</p>
+                <p className="text-2xl font-bold text-gray-900">{formatCurrency(Math.max(0, adjustedBalance))}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Main Content Grid - Better spacing between sections */}
+        {/* Top Spending Categories */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-7 mb-8">
-          {/* Spending by Category */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-7 hover:shadow-lg transition-shadow duration-200">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Top Spending Categories</h2>
@@ -386,7 +397,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Transactions - Final section with proper bottom spacing */}
+        {/* Recent Transactions */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-7 hover:shadow-lg transition-shadow duration-200 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">Recent Transactions</h2>

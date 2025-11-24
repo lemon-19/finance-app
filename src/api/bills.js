@@ -10,6 +10,7 @@ export const addBill = async (uid, name, amount, dueDate, category) => {
       amount,
       dueDate,
       category,
+      status: "unpaid",   // ← NEW
       createdAt: Timestamp.now(),
     });
     return docRef.id;
@@ -17,6 +18,17 @@ export const addBill = async (uid, name, amount, dueDate, category) => {
     console.error("Error adding bill:", error);
   }
 };
+
+//Mark a bill as paid
+export const markBillAsPaid = async (id) => {
+  try {
+    const billRef = doc(db, "bills", id);
+    await updateDoc(billRef, { status: "paid" });
+  } catch (error) {
+    console.error("Error marking bill as paid:", error);
+  }
+};
+
 
 // Get bills
 export const getBills = async (uid) => {
