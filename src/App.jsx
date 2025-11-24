@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import Sidebar from "./components/layout/Sidebar";
 import Navbar from "./components/layout/Navbar";
 import Dashboard from "./pages/dashboard/Dashboard";
@@ -11,6 +16,7 @@ import Settings from "./pages/settings/Settings";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Profile from "./pages/profile/Profile";
+import Landing from "./pages/landing/Landing";
 import { useAuth } from "./context/AuthContext";
 
 function App() {
@@ -45,22 +51,17 @@ function App() {
       {!user ? (
         // Unauthenticated Routes
         <Routes>
+          <Route path="/" element={<Landing />} /> {/* Landing as default */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Navigate to="/login" />} />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       ) : (
         // Authenticated Layout
         <div className="flex h-screen overflow-hidden bg-gray-50">
-          {/* Sidebar */}
           <Sidebar isOpen={isSidebarOpen} onClose={closeSidebar} />
-
-          {/* Main Content Area */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Navbar */}
             <Navbar toggleSidebar={toggleSidebar} userName={userName} />
-
-            {/* Page Content */}
             <main className="flex-1 overflow-y-auto bg-gray-100">
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -69,8 +70,8 @@ function App() {
                 <Route path="/bills" element={<Bills />} />
                 <Route path="/debts" element={<Debts />} />
                 <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<Navigate to="/" />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<Navigate to="/" />} />
               </Routes>
             </main>
           </div>

@@ -1,13 +1,29 @@
 import { Menu, Bell, User, ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom"; // <-- import Link
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { auth } from "../../firebase";
+import { signOut } from "firebase/auth";
 
 export default function Navbar({ toggleSidebar, userName }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  const { setUser } = useAuth();  // ← add this
+  const navigate = useNavigate();  // ← add this
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      navigate("/"); // redirect to landing page
+    } catch (error) {
+      console.error("Logout error:", error);
+      alert("Failed to logout. Try again.");
+    }
+  };
+
   return (
     <nav className="h-16 bg-white shadow flex items-center justify-between px-4 md:px-6 lg:px-8 sticky top-0 z-30">
-      
       {/* Left Section */}
       <div className="flex items-center">
         <button
@@ -21,7 +37,10 @@ export default function Navbar({ toggleSidebar, userName }) {
 
       {/* Right Section */}
       <div className="flex items-center gap-2 md:gap-4">
-        <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative hidden sm:block" aria-label="Notifications">
+        <button
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative hidden sm:block"
+          aria-label="Notifications"
+        >
           <Bell size={20} className="text-gray-600" />
           <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
         </button>
@@ -35,7 +54,9 @@ export default function Navbar({ toggleSidebar, userName }) {
               <User size={18} className="text-white" />
             </div>
             <div className="hidden md:flex flex-col items-start">
-              <span className="text-sm font-medium text-gray-800">{userName || "User"}</span>
+              <span className="text-sm font-medium text-gray-800">
+                {userName || "User"}
+              </span>
               <span className="text-xs text-gray-500">Account</span>
             </div>
             <ChevronDown size={16} className="text-gray-600 hidden md:block" />
@@ -44,7 +65,9 @@ export default function Navbar({ toggleSidebar, userName }) {
           {showUserMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
               <div className="px-4 py-2 border-b border-gray-100">
-                <p className="text-sm font-medium text-gray-800">{userName || "User"}</p>
+                <p className="text-sm font-medium text-gray-800">
+                  {userName || "User"}
+                </p>
                 <p className="text-xs text-gray-500">View Profile</p>
               </div>
 
@@ -65,9 +88,7 @@ export default function Navbar({ toggleSidebar, userName }) {
               </Link>
               <button
                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                onClick={() => {
-                  // Handle logout if you want
-                }}
+                onClick={handleLogout}
               >
                 Logout
               </button>
@@ -75,7 +96,9 @@ export default function Navbar({ toggleSidebar, userName }) {
           )}
         </div>
 
-        <span className="md:hidden text-sm text-gray-700 max-w-[100px] truncate">{userName || "User"}</span>
+        <span className="md:hidden text-sm text-gray-700 max-w-[100px] truncate">
+          {userName || "User"}
+        </span>
       </div>
     </nav>
   );

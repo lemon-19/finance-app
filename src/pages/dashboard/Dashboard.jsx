@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { 
-  DollarSign, CreditCard, FileText, TrendingUp, TrendingDown, AlertCircle, Calendar, ArrowUpRight, ArrowDownRight 
+  Loader2, DollarSign, CreditCard, FileText, TrendingUp, TrendingDown, AlertCircle, Calendar, ArrowUpRight, ArrowDownRight 
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getExpenses } from "../../api/expenses";
@@ -174,7 +174,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading dashboard...</p>
         </div>
       </div>
