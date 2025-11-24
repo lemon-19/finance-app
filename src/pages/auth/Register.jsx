@@ -7,47 +7,68 @@ import { getFirestore, doc, setDoc } from "firebase/firestore";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
+// Import default category functions
+import { addExpenseType } from "../../api/userCategories/expenseTypes";
+import { addBillCategory } from "../../api/userCategories/billCategories";
+import { addIncomeType } from "../../api/userCategories/incomeTypes";
+
 export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
   const db = getFirestore();
   const { setUser } = useAuth(); // update AuthContext
   const navigate = useNavigate();
 
-const handleRegister = async () => {
-  if (!name || !email || !password) return alert("Please fill all fields");
+  // Helper to setup default categories
+  const setupDefaultCategories = async (uid) => {
+    const defaultExpenses = ["Snacks", "Transport", "Grocery", "Entertainment"];
+    const defaultBills = ["Subcription", "Utilities", "Mobile/Telocom", "Loan"];
+    const defaultIncome = ["Salary", "Freelance", "Gift", "Loan"];
 
-  setLoading(true);
-  const auth = getAuth();
+    for (const cat of defaultExpenses) await addExpenseType(uid, cat);
+    for (const cat of defaultBills) await addBillCategory(uid, cat);
+    for (const cat of defaultIncome) await addIncomeType(uid, cat);
+  };
 
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  const handleRegister = async () => {
+    if (!name || !email || !password) return alert("Please fill all fields");
 
-    // Update display name in Auth
-    await updateProfile(userCredential.user, { displayName: name });
-    await auth.currentUser.reload();
+    setLoading(true);
+    const auth = getAuth();
 
-    // Save user info in Firestore
-    await setDoc(doc(db, "users", userCredential.user.uid), {
-      uid: userCredential.user.uid,
-      name: name,
-      email: email,
-      createdAt: new Date()
-    });
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
 
-    // Update context so navbar sees it
-    setUser(auth.currentUser);
+      // Update display name in Auth
+      await updateProfile(userCredential.user, { displayName: name });
+      await auth.currentUser.reload();
 
-    alert("Registration successful!");
-  } catch (error) {
-    console.error(error);
-    alert(error.message);
-  } finally {
-    setLoading(false);
-  }
-};
+      // Save user info in Firestore
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        uid: userCredential.user.uid,
+        name: name,
+        email: email,
+        createdAt: new Date()
+      });
+
+      // Add default categories
+      await setupDefaultCategories(userCredential.user.uid);
+
+      // Update context so navbar sees it
+      setUser(auth.currentUser);
+
+      alert("Registration successful!");
+      navigate("/dashboard"); // Redirect to dashboard
+    } catch (error) {
+      console.error(error);
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">

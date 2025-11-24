@@ -1,171 +1,273 @@
 import { useEffect, useState } from "react";
-import { getIncome, addIncome, deleteIncome } from "../../api/income";
-import { getIncomeTypes } from "../../api/userCategories/incomeTypes";
+import { Trash, Plus, Pencil, CreditCard, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import Input from "../../components/ui/Input";
-import Button from "../../components/ui/Button";
-import { Trash } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { getIncome, addIncome, updateIncome, deleteIncome } from "../../api/income";
+import { getIncomeTypes } from "../../api/userCategories/incomeTypes";
 
 export default function Income() {
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const [income, setIncome] = useState([]);
   const [incomeTypes, setIncomeTypes] = useState([]);
 
-  const [type, setType] = useState("");   // now dropdown
-  const [amount, setAmount] = useState("");
-  const [description, setDescription] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingIncome, setEditingIncome] = useState(null);
+  const [form, setForm] = useState({
+    type: "",
+    amount: "",
+    description: "",
+    dueDate: "", // New field for loan due date
+  });
 
-  // Fetch income + income types
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  // --------------------- UTILS ---------------------
+  const formatCurrency = (amount) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(amount);
+
+  // --------------------- FETCH DATA ---------------------
   useEffect(() => {
     if (!user) return;
-
     const fetchData = async () => {
-      const [incomeList, types] = await Promise.all([
-        getIncome(user.uid),
-        getIncomeTypes(user.uid)
-      ]);
-
-      setIncome(incomeList);
-      setIncomeTypes(types);
+      setInitialLoading(true);
+      try {
+        const [incData, typesData] = await Promise.all([getIncome(user.uid), getIncomeTypes(user.uid)]);
+        setIncome(incData || []);
+        setIncomeTypes(typesData || []);
+      } catch (err) {
+        console.error("Error fetching income:", err);
+      } finally {
+        setInitialLoading(false);
+      }
     };
-
     fetchData();
   }, [user]);
 
-  const handleAdd = async () => {
-    if (!type || !amount) return;
+  // --------------------- FORM HANDLERS ---------------------
+  const handleFormChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
 
-    await addIncome(user.uid, type, Number(amount), description);
+  const handleAddOrUpdate = async () => {
+    try {
+      if (!form.type || !form.amount) return;
 
-    const updated = await getIncome(user.uid);
-    setIncome(updated);
+      if (editingIncome) {
+        await updateIncome(editingIncome.id, form);
+        setIncome((prev) =>
+          prev.map((i) => (i.id === editingIncome.id ? { ...i, ...form } : i))
+        );
+      } else {
+        await addIncome(user.uid, form.type, Number(form.amount), form.description, form.dueDate);
+        const updated = await getIncome(user.uid);
+        setIncome(updated);
+      }
 
-    setType("");
-    setAmount("");
-    setDescription("");
+      setModalOpen(false);
+      setForm({ type: "", amount: "", description: "", dueDate: "" });
+      setEditingIncome(null);
+    } catch (err) {
+      console.error("Error saving income:", err);
+    }
+  };
+
+  const handleEdit = (inc) => {
+    setEditingIncome(inc);
+    setForm({
+      type: inc.type,
+      amount: inc.amount,
+      description: inc.description,
+      dueDate: inc.dueDate || "",
+    });
+    setModalOpen(true);
   };
 
   const handleDelete = async (id) => {
+    if (!confirm("Are you sure you want to delete this income record?")) return;
     await deleteIncome(id);
-    setIncome(prev => prev.filter((i) => i.id !== id));
+    setIncome((prev) => prev.filter((i) => i.id !== id));
   };
 
-  return (
-    <div className="p-5 md:p-10">
-      <h2 className="text-2xl font-bold mb-5">Income</h2>
+  const totalIncome = income.reduce((acc, i) => acc + Number(i.amount), 0);
 
-      {/* Add Income Form */}
-<div className="bg-white p-5 shadow rounded mb-5">
-  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-
-    {/* Income Type Dropdown */}
-    <div className="flex flex-col">
-      <label className="text-sm font-medium mb-1">Income Type</label>
-      <select
-        className="border border-gray-300 rounded px-3 py-2 w-full h-10"
-        value={type}
-        onChange={(e) => setType(e.target.value)}
-      >
-        <option value="">Select Type</option>
-        {incomeTypes.map((t) => (
-          <option key={t.id} value={t.name}>
-            {t.name}
-          </option>
-        ))}
-      </select>
-      {incomeTypes.length === 0 && (
-        <p className="text-xs text-gray-600 mt-1">
-          No types yet.{" "}
-          <button
-            className="text-blue-600 underline"
-            onClick={() => navigate("/settings")}
-          >
-            Add Income Types →
-          </button>
-        </p>
-      )}
-    </div>
-
-    {/* Amount */}
-    <div className="flex flex-col">
-      <label className="text-sm font-medium mb-1">Amount</label>
-      <input
-        type="number"
-        value={amount}
-        onChange={(e) => setAmount(e.target.value)}
-        className="border border-gray-300 rounded px-3 py-2 w-full h-10"
-        placeholder="₱0.00"
-      />
-    </div>
-
-    {/* Description */}
-    <div className="flex flex-col">
-      <label className="text-sm font-medium mb-1">Description</label>
-      <input
-        type="text"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="border border-gray-300 rounded px-3 py-2 w-full h-10"
-        placeholder="Optional description"
-      />
-    </div>
-
-    {/* Add Button */}
-    <div className="flex flex-col">
-      <button
-        onClick={handleAdd}
-        className="bg-green-500 hover:bg-green-600 text-white rounded px-5 py-2 h-10 w-full lg:w-auto"
-      >
-        Add Income
-      </button>
-    </div>
-
-  </div>
-</div>
-
-
-      {/* Income List Table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white shadow rounded">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="py-2 px-4 text-left">Type</th>
-              <th className="py-2 px-4 text-left">Amount</th>
-              <th className="py-2 px-4 text-left">Description</th>
-              <th className="py-2 px-4 text-left">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {income.map((inc) => (
-              <tr key={inc.id} className="border-b hover:bg-gray-50">
-                <td className="py-2 px-4">{inc.type}</td>
-                <td className="py-2 px-4">₱{inc.amount}</td>
-                <td className="py-2 px-4">{inc.description}</td>
-                <td className="py-2 px-4">
-                  <button
-                    onClick={() => handleDelete(inc.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash size={18} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-
-            {income.length === 0 && (
-              <tr>
-                <td colSpan="4" className="text-center py-4 text-gray-500">
-                  No income records yet.
-                </td>
-              </tr>
-            )}
-
-          </tbody>
-        </table>
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="animate-spin h-12 w-12 text-green-500 mx-auto mb-4" />
+          <p className="text-gray-600">Loading income...</p>
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Section */}
+      <div className="bg-linear-to-r from-green-50 to-green-100 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-1">Income</h1>
+            <p className="text-sm text-gray-600">Track and manage your earnings</p>
+          </div>
+          <button
+            onClick={() => setModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md"
+          >
+            <Plus size={18} /> Add Income
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-gray-500 font-medium mb-2">Total Income</p>
+            <p className="text-3xl font-bold text-gray-900">{formatCurrency(totalIncome)}</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-gray-500 font-medium mb-2">Number of Records</p>
+            <p className="text-3xl font-bold text-gray-900">{income.length}</p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-gray-500 font-medium mb-2">Average Income</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {income.length ? formatCurrency(totalIncome / income.length) : formatCurrency(0)}
+            </p>
+          </div>
+        </div>
+
+        {/* Income List Table */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-7">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Income List</h2>
+          {income.length > 0 ? (
+            <div className="space-y-3">
+              {income.map((inc) => (
+                <div
+                  key={inc.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+                >
+                  <div>
+                    <p className="font-semibold text-gray-900 mb-1">{inc.type}</p>
+                    <p className="text-sm text-gray-600 mb-1">{inc.description}</p>
+                    {inc.dueDate && (
+                      <p className="text-xs text-red-500">Due Date: {new Date(inc.dueDate).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(inc.amount)}</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEdit(inc)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit income"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(inc.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete income"
+                      >
+                        <Trash size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <CreditCard className="mx-auto text-gray-300 mb-4" size={56} />
+              <p className="text-sm font-semibold text-gray-600">No income records yet</p>
+              <p className="text-xs text-gray-400 mt-2">Start adding income to track your earnings</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingIncome ? "Edit Income" : "Add New Income"}</h2>
+              <div className="flex flex-col gap-4">
+                {/* Income Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Income Type</label>
+                  <select
+                    name="type"
+                    value={form.type}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  >
+                    <option value="">Select Type</option>
+                    {incomeTypes.map((t) => (
+                      <option key={t.id} value={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                  <input
+                    type="number"
+                    name="amount"
+                    placeholder="0.00"
+                    value={form.amount}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <input
+                    type="text"
+                    name="description"
+                    placeholder="Optional description"
+                    value={form.description}
+                    onChange={handleFormChange}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Due Date: Only show if type is Loan */}
+                {form.type.toLowerCase() === "loan" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                    <input
+                      type="date"
+                      name="dueDate"
+                      value={form.dueDate}
+                      onChange={handleFormChange}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                  </div>
+                )}
+
+                {/* Buttons */}
+                <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
+                  <button
+                    onClick={() => { setModalOpen(false); setEditingIncome(null); setForm({ type: "", amount: "", description: "", dueDate: "" }); }}
+                    className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAddOrUpdate}
+                    className="px-5 py-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 font-medium transition-colors"
+                  >
+                    {editingIncome ? "Update" : "Add"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

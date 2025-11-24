@@ -419,7 +419,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 text-sm">
-                        {transaction.type === 'income' ? transaction.type : transaction.category}
+                        {transaction.type === 'income' ? transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1) : transaction.category}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">{transaction.description}</p>
                     </div>

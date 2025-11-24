@@ -1,5 +1,7 @@
 import { auth } from "../firebase";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+
+const provider = new GoogleAuthProvider();
 
 // Register
 export const registerUser = async (email, password) => {
@@ -8,6 +10,17 @@ export const registerUser = async (email, password) => {
     return userCredential.user;
   } catch (error) {
     console.error("Error registering user:", error.message);
+    throw error;
+  }
+};
+
+export const signInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    // result.user contains the signed-in user info
+    return result.user;
+  } catch (error) {
+    console.error("Google Sign-In Error:", error.message);
     throw error;
   }
 };

@@ -10,6 +10,7 @@ import Debts from "./pages/debts/Debts";
 import Settings from "./pages/settings/Settings";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import Profile from "./pages/profile/Profile";
 import { useAuth } from "./context/AuthContext";
 
 function App() {
@@ -69,6 +70,7 @@ function App() {
                 <Route path="/debts" element={<Debts />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<Navigate to="/" />} />
+                <Route path="/profile" element={<Profile />} />
               </Routes>
             </main>
           </div>
