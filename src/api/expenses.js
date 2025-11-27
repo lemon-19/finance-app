@@ -18,15 +18,42 @@ export const addExpense = async (uid, category, amount, description) => {
 };
 
 // Get expenses for user
-export const getExpenses = async (uid) => {
+// export const getExpenses = async (uid) => {
+//   try {
+//     const q = query(collection(db, "expenses"), where("uid", "==", uid), orderBy("createdAt", "desc"));
+//     const snapshot = await getDocs(q);
+//     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+//   } catch (error) {
+//     console.error("Error fetching expenses:", error);
+//   }
+// };
+
+export const getExpenses = async (uid, { startDate = null, endDate = null } = {}) => {
   try {
-    const q = query(collection(db, "expenses"), where("uid", "==", uid), orderBy("createdAt", "desc"));
+    let q = query(
+      collection(db, "expenses"),
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+
+    if (startDate) q = query(q, where("createdAt", ">=", startDate));
+    if (endDate)   q = query(q, where("createdAt", "<=", endDate));
+
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt.toDate(),  // convert here
+      };
+    });
   } catch (error) {
     console.error("Error fetching expenses:", error);
   }
 };
+
 
 // Get expenses for user (Paginated fetch)
 export const getExpensesPaginated = async (uid, limitNum = 10, lastDoc = null) => {

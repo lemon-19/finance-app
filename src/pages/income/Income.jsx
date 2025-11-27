@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Trash, Plus, Pencil, CreditCard, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { getIncome, addIncome, updateIncome, deleteIncome } from "../../api/income";
@@ -16,22 +16,42 @@ export default function Income() {
     type: "",
     amount: "",
     description: "",
-    dueDate: "", // New field for loan due date
+    dueDate: "",
   });
 
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // --------------------- UTILS ---------------------
-  const formatCurrency = (amount) =>
-    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(amount);
+  // --------------------- UTILS (MEMOIZED) ---------------------
+  const formatCurrency = useCallback((amount) => {
+    return new Intl.NumberFormat("en-PH", {
+      style: "currency",
+      currency: "PHP",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  }, []);
+
+  const formatDate = useCallback((date) => {
+    if (!date) return "";
+    const dateObj = date instanceof Date ? date : new Date(date);
+    return dateObj.toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
 
   // --------------------- FETCH DATA ---------------------
   useEffect(() => {
     if (!user) return;
+
     const fetchData = async () => {
       setInitialLoading(true);
       try {
-        const [incData, typesData] = await Promise.all([getIncome(user.uid), getIncomeTypes(user.uid)]);
+        // Fetch both in parallel for faster loading
+        const [incData, typesData] = await Promise.all([
+          getIncome(user.uid),
+          getIncomeTypes(user.uid),
+        ]);
         setIncome(incData || []);
         setIncomeTypes(typesData || []);
       } catch (err) {
@@ -40,25 +60,46 @@ export default function Income() {
         setInitialLoading(false);
       }
     };
+
     fetchData();
   }, [user]);
 
+  // --------------------- COMPUTED VALUES (MEMOIZED) ---------------------
+  const totalIncome = useMemo(() => {
+    return income.reduce((acc, i) => acc + Number(i.amount), 0);
+  }, [income]);
+
+  const averageIncome = useMemo(() => {
+    return income.length ? totalIncome / income.length : 0;
+  }, [income.length, totalIncome]);
+
   // --------------------- FORM HANDLERS ---------------------
-  const handleFormChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleFormChange = useCallback((e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
-  const handleAddOrUpdate = async () => {
+  const handleAddOrUpdate = useCallback(async () => {
+    if (!form.type || !form.amount) {
+      alert("Please fill in required fields (Type and Amount)");
+      return;
+    }
+
     try {
-      if (!form.type || !form.amount) return;
-
       if (editingIncome) {
         await updateIncome(editingIncome.id, form);
         setIncome((prev) =>
           prev.map((i) => (i.id === editingIncome.id ? { ...i, ...form } : i))
         );
       } else {
-        await addIncome(user.uid, form.type, Number(form.amount), form.description, form.dueDate);
+        await addIncome(
+          user.uid,
+          form.type,
+          Number(form.amount),
+          form.description,
+          form.dueDate || null
+        );
         const updated = await getIncome(user.uid);
-        setIncome(updated);
+        setIncome(updated || []);
       }
 
       setModalOpen(false);
@@ -66,28 +107,53 @@ export default function Income() {
       setEditingIncome(null);
     } catch (err) {
       console.error("Error saving income:", err);
+      alert("Failed to save income. Please try again.");
     }
-  };
+  }, [editingIncome, form, user?.uid]);
 
-  const handleEdit = (inc) => {
+  const handleEdit = useCallback((inc) => {
     setEditingIncome(inc);
+    
+    // Handle date formatting for editing
+    let formattedDueDate = "";
+    if (inc.dueDate) {
+      const dateObj = inc.dueDate instanceof Date ? inc.dueDate : new Date(inc.dueDate);
+      formattedDueDate = dateObj.toISOString().split("T")[0];
+    }
+
     setForm({
       type: inc.type,
       amount: inc.amount,
-      description: inc.description,
-      dueDate: inc.dueDate || "",
+      description: inc.description || "",
+      dueDate: formattedDueDate,
     });
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!confirm("Are you sure you want to delete this income record?")) return;
-    await deleteIncome(id);
-    setIncome((prev) => prev.filter((i) => i.id !== id));
-  };
 
-  const totalIncome = income.reduce((acc, i) => acc + Number(i.amount), 0);
+    try {
+      await deleteIncome(id);
+      setIncome((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      console.error("Error deleting income:", err);
+      alert("Failed to delete income. Please try again.");
+    }
+  }, []);
 
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingIncome(null);
+    setForm({ type: "", amount: "", description: "", dueDate: "" });
+  }, []);
+
+  // Check if form type is loan (case-insensitive)
+  const isLoanType = useMemo(() => {
+    return form.type.toLowerCase() === "loan" || form.type.toLowerCase() === "debt";
+  }, [form.type]);
+
+  // --------------------- LOADING STATE ---------------------
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -99,21 +165,24 @@ export default function Income() {
     );
   }
 
+  // --------------------- RENDER ---------------------
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
-      <div className="bg-linear-to-r from-green-50 to-green-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Income</h1>
-            <p className="text-sm text-gray-600">Track and manage your earnings</p>
+      <div className="bg-gradient-to-r from-green-50 to-green-100 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">Income</h1>
+              <p className="text-sm text-gray-600">Track and manage your earnings</p>
+            </div>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md"
+            >
+              <Plus size={18} /> Add Income
+            </button>
           </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all shadow-sm hover:shadow-md"
-          >
-            <Plus size={18} /> Add Income
-          </button>
         </div>
       </div>
 
@@ -122,7 +191,9 @@ export default function Income() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-6 mb-8">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
             <p className="text-sm text-gray-500 font-medium mb-2">Total Income</p>
-            <p className="text-3xl font-bold text-gray-900">{formatCurrency(totalIncome)}</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {formatCurrency(totalIncome)}
+            </p>
           </div>
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
             <p className="text-sm text-gray-500 font-medium mb-2">Number of Records</p>
@@ -131,7 +202,7 @@ export default function Income() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
             <p className="text-sm text-gray-500 font-medium mb-2">Average Income</p>
             <p className="text-3xl font-bold text-gray-900">
-              {income.length ? formatCurrency(totalIncome / income.length) : formatCurrency(0)}
+              {formatCurrency(averageIncome)}
             </p>
           </div>
         </div>
@@ -142,47 +213,61 @@ export default function Income() {
           {income.length > 0 ? (
             <div className="space-y-3">
               {income.map((inc) => (
-<div
-  key={inc.id}
-  className="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
->
-  <div>
-    <p className="font-semibold text-gray-900 mb-1">{inc.type}</p>
-    <p className="text-sm text-gray-600 mb-1">{inc.description}</p>
-    {inc.dueDate && (
-      <p className="text-xs text-red-500">Due Date: {new Date(inc.dueDate).toLocaleDateString()}</p>
-    )}
-  </div>
+                <div
+                  key={inc.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-xl border border-gray-200 hover:border-gray-300 hover:shadow-sm transition-all"
+                >
+                  <div className="flex items-start gap-4 mb-3 sm:mb-0">
+                    <div className="p-2.5 bg-green-50 rounded-xl">
+                      <CreditCard className="text-green-600" size={22} />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 mb-1">{inc.type}</p>
+                      {inc.description && (
+                        <p className="text-sm text-gray-600 mb-1">{inc.description}</p>
+                      )}
+                      {inc.dueDate && (
+                        <p className="text-xs text-red-500">
+                          Due Date: {formatDate(inc.dueDate)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-  {/* Amount + Icons */}
-  <div className="flex justify-between items-center mt-3 sm:mt-0 w-full sm:w-auto">
-    <p className="text-xl font-bold text-gray-900">{formatCurrency(inc.amount)}</p>
-    <div className="flex gap-2">
-      <button
-        onClick={() => handleEdit(inc)}
-        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-        title="Edit income"
-      >
-        <Pencil size={18} />
-      </button>
-      <button
-        onClick={() => handleDelete(inc.id)}
-        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-        title="Delete income"
-      >
-        <Trash size={18} />
-      </button>
-    </div>
-  </div>
-</div>
-
+                  {/* Amount + Icons */}
+                  <div className="flex items-center justify-between sm:justify-end gap-4">
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatCurrency(inc.amount)}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEdit(inc)}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit income"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(inc.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete income"
+                      >
+                        <Trash size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           ) : (
             <div className="text-center py-16">
               <CreditCard className="mx-auto text-gray-300 mb-4" size={56} />
-              <p className="text-sm font-semibold text-gray-600">No income records yet</p>
-              <p className="text-xs text-gray-400 mt-2">Start adding income to track your earnings</p>
+              <p className="text-sm font-semibold text-gray-600">
+                No income records yet
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Start adding income to track your earnings
+              </p>
             </div>
           )}
         </div>
@@ -193,11 +278,15 @@ export default function Income() {
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">{editingIncome ? "Edit Income" : "Add New Income"}</h2>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                {editingIncome ? "Edit Income" : "Add New Income"}
+              </h2>
               <div className="flex flex-col gap-4">
                 {/* Income Type */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Income Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Income Type <span className="text-red-500">*</span>
+                  </label>
                   <select
                     name="type"
                     value={form.type}
@@ -206,14 +295,18 @@ export default function Income() {
                   >
                     <option value="">Select Type</option>
                     {incomeTypes.map((t) => (
-                      <option key={t.id} value={t.name}>{t.name}</option>
+                      <option key={t.id} value={t.name}>
+                        {t.name}
+                      </option>
                     ))}
                   </select>
                 </div>
 
                 {/* Amount */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount (₱) <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="number"
                     name="amount"
@@ -226,7 +319,9 @@ export default function Income() {
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description
+                  </label>
                   <input
                     type="text"
                     name="description"
@@ -237,10 +332,12 @@ export default function Income() {
                   />
                 </div>
 
-                {/* Due Date: Only show if type is Loan */}
-                {form.type.toLowerCase() === "loan" && (
+                {/* Due Date: Only show if type is Loan or Debt */}
+                {isLoanType && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Due Date
+                    </label>
                     <input
                       type="date"
                       name="dueDate"
@@ -254,7 +351,7 @@ export default function Income() {
                 {/* Buttons */}
                 <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                   <button
-                    onClick={() => { setModalOpen(false); setEditingIncome(null); setForm({ type: "", amount: "", description: "", dueDate: "" }); }}
+                    onClick={closeModal}
                     className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
                   >
                     Cancel

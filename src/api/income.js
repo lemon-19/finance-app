@@ -27,22 +27,51 @@ export const addIncome = async (uid, type, amount, description, dueDate = null) 
 };
 
 // Get incomes
-export const getIncome = async (uid) => {
+// export const getIncome = async (uid) => {
+//   try {
+//     const q = query(collection(db, "income"), where("uid", "==", uid), orderBy("createdAt", "desc"));
+//     const snapshot = await getDocs(q);
+//     return snapshot.docs.map(doc => {
+//       const data = doc.data();
+//       return {
+//         id: doc.id,
+//         ...data,
+//         dueDate: data.dueDate ? data.dueDate.toDate() : null, // convert Timestamp to JS Date
+//       };
+//     });
+//   } catch (error) {
+//     console.error("Error fetching income:", error);
+//   }
+// };
+
+export const getIncome = async (uid, { startDate = null, endDate = null } = {}) => {
   try {
-    const q = query(collection(db, "income"), where("uid", "==", uid), orderBy("createdAt", "desc"));
+    let q = query(
+      collection(db, "income"),
+      where("uid", "==", uid),
+      orderBy("createdAt", "desc")
+    );
+
+    if (startDate) q = query(q, where("createdAt", ">=", startDate));
+    if (endDate)   q = query(q, where("createdAt", "<=", endDate));
+
     const snapshot = await getDocs(q);
+
     return snapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
-        dueDate: data.dueDate ? data.dueDate.toDate() : null, // convert Timestamp to JS Date
+        createdAt: data.createdAt.toDate(),
+        dueDate: data.dueDate ? data.dueDate.toDate() : null,
       };
     });
   } catch (error) {
     console.error("Error fetching income:", error);
   }
 };
+
+
 
 // Update income
 export const updateIncome = async (id, data) => {

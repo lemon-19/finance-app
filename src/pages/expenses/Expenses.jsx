@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-import { Trash, Plus, Pencil, CreditCard, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { Trash, Plus, Pencil, CreditCard, ChevronRight, Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
-  getExpenses,
   getExpensesPaginated,
   addExpense,
   updateExpense,
@@ -35,27 +34,36 @@ export default function Expenses() {
   const ITEMS_PER_PAGE = 10;
 
   // --------------------- UTILS ---------------------
-  const formatCurrency = (amount) => {
+  const formatCurrency = useCallback((amount) => {
     return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
       minimumFractionDigits: 0,
     }).format(amount);
-  };
+  }, []);
 
-  const formatDate = (timestamp) =>
-    new Date(timestamp.seconds * 1000).toLocaleDateString("en-PH", {
+  const formatDate = useCallback((timestamp) => {
+    const date = timestamp?.seconds 
+      ? new Date(timestamp.seconds * 1000)
+      : timestamp instanceof Date 
+      ? timestamp 
+      : new Date(timestamp);
+    
+    return date.toLocaleDateString("en-PH", {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
+  }, []);
 
   // --------------------- FETCH DATA ---------------------
   useEffect(() => {
     if (!user) return;
+    
     const fetchData = async () => {
       setInitialLoading(true);
       try {
+        // Fetch both in parallel for faster loading
         const [expData, catData] = await Promise.all([
           getExpensesPaginated(user.uid, ITEMS_PER_PAGE),
           getExpenseTypes(user.uid),
@@ -71,11 +79,12 @@ export default function Expenses() {
         setInitialLoading(false);
       }
     };
+    
     fetchData();
   }, [user]);
 
   // Load more expenses
-  const loadMoreExpenses = async () => {
+  const loadMoreExpenses = useCallback(async () => {
     if (!hasMore || loadingMore || !lastVisible) return;
 
     setLoadingMore(true);
@@ -98,48 +107,62 @@ export default function Expenses() {
     } finally {
       setLoadingMore(false);
     }
-  };
+  }, [hasMore, loadingMore, lastVisible, user?.uid]);
 
-  // --------------------- FILTERED DATA ---------------------
-  const filteredExpenses = expenses.filter((e) => {
-    const expDate = new Date(e.createdAt.seconds * 1000);
-    let startDate;
-    const now = new Date();
-    switch (timeRange) {
-      case "week":
-        startDate = new Date(
-          now.getFullYear(),
-          now.getMonth(),
-          now.getDate() - 7
-        );
-        break;
-      case "month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "year":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-    return (
-      expDate >= startDate &&
-      (!filterCategory || e.category === filterCategory) &&
-      (!searchTerm ||
-        e.description.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  });
+  // --------------------- FILTERED DATA (MEMOIZED) ---------------------
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((e) => {
+      // Handle both Timestamp and Date objects
+      const expDate = e.createdAt?.seconds 
+        ? new Date(e.createdAt.seconds * 1000)
+        : e.createdAt instanceof Date 
+        ? e.createdAt 
+        : new Date(e.createdAt);
 
-  const totalExpenses = filteredExpenses.reduce(
-    (acc, e) => acc + Number(e.amount),
-    0
-  );
+      let startDate;
+      const now = new Date();
+      
+      switch (timeRange) {
+        case "week":
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+      
+      return (
+        expDate >= startDate &&
+        (!filterCategory || e.category === filterCategory) &&
+        (!searchTerm || e.description.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    });
+  }, [expenses, timeRange, filterCategory, searchTerm]);
+
+  const totalExpenses = useMemo(() => {
+    return filteredExpenses.reduce((acc, e) => acc + Number(e.amount), 0);
+  }, [filteredExpenses]);
+
+  const averageExpense = useMemo(() => {
+    return filteredExpenses.length ? totalExpenses / filteredExpenses.length : 0;
+  }, [filteredExpenses.length, totalExpenses]);
 
   // --------------------- FORM HANDLERS ---------------------
-  const handleFormChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleFormChange = useCallback((e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
-  const handleAddOrUpdate = async () => {
+  const handleAddOrUpdate = useCallback(async () => {
+    if (!form.amount || !form.category || !form.description || !form.date) {
+      alert("Please fill in all fields");
+      return;
+    }
+
     try {
       if (editingExpense) {
         await updateExpense(editingExpense.id, form);
@@ -147,7 +170,7 @@ export default function Expenses() {
           prev.map((e) => (e.id === editingExpense.id ? { ...e, ...form } : e))
         );
       } else {
-        const newExpId = await addExpense(
+        await addExpense(
           user.uid,
           form.category,
           Number(form.amount),
@@ -161,33 +184,53 @@ export default function Expenses() {
         setLastVisible(refreshData?.lastVisible || null);
         setHasMore(refreshData?.expenses?.length === ITEMS_PER_PAGE);
       }
+      
       setModalOpen(false);
       setForm({ amount: "", category: "", description: "", date: "" });
       setEditingExpense(null);
     } catch (err) {
       console.error("Error saving expense:", err);
+      alert("Failed to save expense. Please try again.");
     }
-  };
+  }, [editingExpense, form, user?.uid]);
 
-  const handleEdit = (expense) => {
+  const handleEdit = useCallback((expense) => {
     setEditingExpense(expense);
+    
+    const expDate = expense.createdAt?.seconds 
+      ? new Date(expense.createdAt.seconds * 1000)
+      : expense.createdAt instanceof Date 
+      ? expense.createdAt 
+      : new Date(expense.createdAt);
+    
     setForm({
       amount: expense.amount,
       category: expense.category,
       description: expense.description,
-      date: new Date(expense.createdAt.seconds * 1000)
-        .toISOString()
-        .split("T")[0],
+      date: expDate.toISOString().split("T")[0],
     });
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!confirm("Are you sure you want to delete this expense?")) return;
-    await deleteExpense(id);
-    setExpenses((prev) => prev.filter((e) => e.id !== id));
-  };
+    
+    try {
+      await deleteExpense(id);
+      setExpenses((prev) => prev.filter((e) => e.id !== id));
+    } catch (error) {
+      console.error("Error deleting expense:", error);
+      alert("Failed to delete expense. Please try again.");
+    }
+  }, []);
 
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingExpense(null);
+    setForm({ amount: "", category: "", description: "", date: "" });
+  }, []);
+
+  // --------------------- LOADING STATE ---------------------
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -199,17 +242,16 @@ export default function Expenses() {
     );
   }
 
+  // --------------------- RENDER ---------------------
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
-      <div className="bg-linear-to-r from-red-50 to-orange-50 border-b border-gray-200">
+      <div className="bg-gradient-to-r from-red-50 to-orange-50 border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-1">Expenses</h1>
-              <p className="text-sm text-gray-600">
-                Track and manage your spending
-              </p>
+              <p className="text-sm text-gray-600">Track and manage your spending</p>
             </div>
             <button
               onClick={() => setModalOpen(true)}
@@ -271,9 +313,7 @@ export default function Expenses() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
             <p className="text-sm text-gray-500 font-medium mb-2">Average Expense</p>
             <p className="text-3xl font-bold text-gray-900">
-              {filteredExpenses.length
-                ? formatCurrency(totalExpenses / filteredExpenses.length)
-                : formatCurrency(0)}
+              {formatCurrency(averageExpense)}
             </p>
           </div>
         </div>
@@ -441,11 +481,7 @@ export default function Expenses() {
                 </div>
                 <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                   <button
-                    onClick={() => {
-                      setModalOpen(false);
-                      setEditingExpense(null);
-                      setForm({ amount: "", category: "", description: "", date: "" });
-                    }}
+                    onClick={closeModal}
                     className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
                   >
                     Cancel

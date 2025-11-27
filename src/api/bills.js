@@ -31,15 +31,45 @@ export const markBillAsPaid = async (id) => {
 
 
 // Get bills
+// export const getBills = async (uid) => {
+//   try {
+//     const q = query(collection(db, "bills"), where("uid", "==", uid), orderBy("dueDate"));
+//     const snapshot = await getDocs(q);
+//     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+//   } catch (error) {
+//     console.error("Error fetching bills:", error);
+//   }
+// };
+
 export const getBills = async (uid) => {
   try {
-    const q = query(collection(db, "bills"), where("uid", "==", uid), orderBy("dueDate"));
+    const q = query(
+      collection(db, "bills"),
+      where("uid", "==", uid),
+      orderBy("dueDate")
+    );
+
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+
+      return {
+        id: doc.id,
+        ...data,
+        dueDate: data.dueDate
+          ? data.dueDate.toDate
+            ? data.dueDate.toDate()        // Firestore Timestamp
+            : new Date(data.dueDate)       // Your string "2025-11-28"
+          : null,
+      };
+    });
   } catch (error) {
     console.error("Error fetching bills:", error);
   }
 };
+
+
 
 // Update bill
 export const updateBill = async (id, data) => {

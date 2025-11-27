@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Trash, Plus, Pencil, CreditCard, Loader2, CheckCircle, Circle } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
-import { getBills, addBill, deleteBill, updateBill, markBillAsPaid } from "../../api/bills";
+import { getBills, addBill, deleteBill, updateBill } from "../../api/bills";
 import { getBillCategories } from "../../api/userCategories/billCategories";
 
 export default function Bills() {
@@ -23,13 +23,24 @@ export default function Bills() {
   });
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // --------------------- UTILS ---------------------
-  const formatCurrency = (amount) =>
-    new Intl.NumberFormat("en-PH", {
+  // --------------------- UTILS (MEMOIZED) ---------------------
+  const formatCurrency = useCallback((amount) => {
+    return new Intl.NumberFormat("en-PH", {
       style: "currency",
       currency: "PHP",
       minimumFractionDigits: 0,
     }).format(amount);
+  }, []);
+
+  const formatDate = useCallback((date) => {
+    if (!date) return "";
+    const dateObj = date instanceof Date ? date : new Date(date);
+    return dateObj.toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  }, []);
 
   // --------------------- FETCH DATA ---------------------
   useEffect(() => {
@@ -38,6 +49,7 @@ export default function Bills() {
     const fetchData = async () => {
       setInitialLoading(true);
       try {
+        // Fetch both in parallel for faster loading
         const [billsData, categoriesData] = await Promise.all([
           getBills(user.uid),
           getBillCategories(user.uid),
@@ -54,38 +66,76 @@ export default function Bills() {
     fetchData();
   }, [user]);
 
-  // --------------------- FILTERED DATA ---------------------
-  const filteredBills = bills.filter((bill) => {
-    const billDate = new Date(bill.dueDate);
-    const now = new Date();
-    let startDate;
+  // --------------------- FILTERED DATA (MEMOIZED) ---------------------
+  const filteredBills = useMemo(() => {
+    return bills.filter((bill) => {
+      // Handle date conversion - bill.dueDate could be a Date object or string
+      let billDate;
+      try {
+        billDate = bill.dueDate instanceof Date 
+          ? bill.dueDate 
+          : new Date(bill.dueDate);
+        
+        // Check if date is valid
+        if (isNaN(billDate.getTime())) {
+          console.warn(`Invalid date for bill ${bill.id}:`, bill.dueDate);
+          return false;
+        }
+      } catch (error) {
+        console.error(`Error parsing date for bill ${bill.id}:`, error);
+        return false;
+      }
 
-    switch (timeRange) {
-      case "week":
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
-        break;
-      case "month":
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case "year":
-        startDate = new Date(now.getFullYear(), 0, 1);
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
+      const now = new Date();
+      let startDate;
 
-    return (
-      billDate >= startDate &&
-      (!filterCategory || bill.category === filterCategory) &&
-      (!filterStatus || bill.status === filterStatus) &&
-      (!searchTerm || bill.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  });
+      switch (timeRange) {
+        case "week":
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+          break;
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          break;
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      }
+
+      return (
+        billDate >= startDate &&
+        (!filterCategory || bill.category === filterCategory) &&
+        (!filterStatus || bill.status === filterStatus) &&
+        (!searchTerm || bill.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    });
+  }, [bills, timeRange, filterCategory, filterStatus, searchTerm]);
+
+  // Calculate totals (memoized)
+  const { totalBills, unpaidBills, paidBills } = useMemo(() => {
+    const total = filteredBills.reduce((acc, b) => acc + Number(b.amount), 0);
+    const unpaid = filteredBills
+      .filter((b) => b.status === "unpaid")
+      .reduce((acc, b) => acc + Number(b.amount), 0);
+    const paid = filteredBills
+      .filter((b) => b.status === "paid")
+      .reduce((acc, b) => acc + Number(b.amount), 0);
+    
+    return { totalBills: total, unpaidBills: unpaid, paidBills: paid };
+  }, [filteredBills]);
 
   // --------------------- FORM HANDLERS ---------------------
-  const handleFormChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleFormChange = useCallback((e) => {
+    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  }, []);
 
-  const handleAddOrUpdate = async () => {
+  const handleAddOrUpdate = useCallback(async () => {
+    if (!form.name || !form.amount || !form.dueDate || !form.category) {
+      alert("Please fill in all fields");
+      return;
+    }
+
     try {
       if (editingBill) {
         await updateBill(editingBill.id, form);
@@ -95,7 +145,7 @@ export default function Bills() {
       } else {
         await addBill(user.uid, form.name, Number(form.amount), form.dueDate, form.category);
         const updated = await getBills(user.uid);
-        setBills(updated);
+        setBills(updated || []);
       }
 
       setModalOpen(false);
@@ -103,27 +153,47 @@ export default function Bills() {
       setForm({ name: "", amount: "", dueDate: "", category: "" });
     } catch (err) {
       console.error("Error saving bill:", err);
+      alert("Failed to save bill. Please try again.");
     }
-  };
+  }, [editingBill, form, user?.uid]);
 
-  const handleEdit = (bill) => {
+  const handleEdit = useCallback((bill) => {
     setEditingBill(bill);
+    
+    // Convert date to ISO format for input field
+    let formattedDate = "";
+    if (bill.dueDate) {
+      const dateObj = bill.dueDate instanceof Date 
+        ? bill.dueDate 
+        : new Date(bill.dueDate);
+      
+      if (!isNaN(dateObj.getTime())) {
+        formattedDate = dateObj.toISOString().split("T")[0];
+      }
+    }
+
     setForm({
       name: bill.name,
       amount: bill.amount,
-      dueDate: bill.dueDate,
+      dueDate: formattedDate,
       category: bill.category,
     });
     setModalOpen(true);
-  };
+  }, []);
 
-  const handleDelete = async (id) => {
+  const handleDelete = useCallback(async (id) => {
     if (!confirm("Are you sure you want to delete this bill?")) return;
-    await deleteBill(id);
-    setBills((prev) => prev.filter((b) => b.id !== id));
-  };
+    
+    try {
+      await deleteBill(id);
+      setBills((prev) => prev.filter((b) => b.id !== id));
+    } catch (err) {
+      console.error("Error deleting bill:", err);
+      alert("Failed to delete bill. Please try again.");
+    }
+  }, []);
 
-  const handleTogglePaid = async (bill) => {
+  const handleTogglePaid = useCallback(async (bill) => {
     try {
       const newStatus = bill.status === "paid" ? "unpaid" : "paid";
       await updateBill(bill.id, { status: newStatus });
@@ -132,9 +202,17 @@ export default function Bills() {
       );
     } catch (err) {
       console.error("Error toggling bill status:", err);
+      alert("Failed to update bill status. Please try again.");
     }
-  };
+  }, []);
 
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setEditingBill(null);
+    setForm({ name: "", amount: "", dueDate: "", category: "" });
+  }, []);
+
+  // --------------------- LOADING STATE ---------------------
   if (initialLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -146,25 +224,50 @@ export default function Bills() {
     );
   }
 
+  // --------------------- RENDER ---------------------
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
-      <div className="bg-linear-to-r from-amber-50 to-amber-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-1">Bills</h1>
-            <p className="text-sm text-gray-600">Manage your recurring payments</p>
+      <div className="bg-gradient-to-r from-amber-50 to-amber-100 border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">Bills</h1>
+              <p className="text-sm text-gray-600">Manage your recurring payments</p>
+            </div>
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md"
+            >
+              <Plus size={18} /> Add Bill
+            </button>
           </div>
-          <button
-            onClick={() => setModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm hover:shadow-md"
-          >
-            <Plus size={18} /> Add Bill
-          </button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 lg:gap-6 mb-8">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-gray-500 font-medium mb-2">Total Bills</p>
+            <p className="text-3xl font-bold text-gray-900">
+              {formatCurrency(totalBills)}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-orange-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-orange-600 font-medium mb-2">Unpaid Bills</p>
+            <p className="text-3xl font-bold text-orange-600">
+              {formatCurrency(unpaidBills)}
+            </p>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-6 hover:shadow-lg transition-all">
+            <p className="text-sm text-green-600 font-medium mb-2">Paid Bills</p>
+            <p className="text-3xl font-bold text-green-600">
+              {formatCurrency(paidBills)}
+            </p>
+          </div>
+        </div>
+
         {/* Filters */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-8">
           <select
@@ -227,7 +330,10 @@ export default function Bills() {
                     <div className={`p-2.5 rounded-xl ${
                       bill.status === "paid" ? "bg-green-100" : "bg-orange-50"
                     }`}>
-                      <CreditCard className={bill.status === "paid" ? "text-green-600" : "text-orange-600"} size={22} />
+                      <CreditCard 
+                        className={bill.status === "paid" ? "text-green-600" : "text-orange-600"} 
+                        size={22} 
+                      />
                     </div>
                     <div>
                       <p className={`font-semibold mb-1 ${
@@ -236,11 +342,13 @@ export default function Bills() {
                         {bill.name}
                       </p>
                       <p className="text-sm text-gray-600 mb-1">{bill.category}</p>
-                      <p className="text-xs text-gray-500">Due: {bill.dueDate}</p>
+                      <p className="text-xs text-gray-500">
+                        Due: {formatDate(bill.dueDate)}
+                      </p>
                       <p className={`text-xs font-medium mt-1 ${
                         bill.status === "paid" ? "text-green-600" : "text-orange-600"
                       }`}>
-                        {bill.status === "paid" ? "Paid" : "Unpaid"}
+                        {bill.status === "paid" ? "✓ Paid" : "• Unpaid"}
                       </p>
                     </div>
                   </div>
@@ -304,7 +412,7 @@ export default function Bills() {
               <div className="flex flex-col gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Bill Name
+                    Bill Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -317,7 +425,7 @@ export default function Bills() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Amount (₱)
+                    Amount (₱) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -330,7 +438,7 @@ export default function Bills() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Due Date
+                    Due Date <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -342,7 +450,7 @@ export default function Bills() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category
+                    Category <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="category"
@@ -360,11 +468,7 @@ export default function Bills() {
                 </div>
                 <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                   <button
-                    onClick={() => {
-                      setModalOpen(false);
-                      setEditingBill(null);
-                      setForm({ name: "", amount: "", dueDate: "", category: "" });
-                    }}
+                    onClick={closeModal}
                     className="px-5 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
                   >
                     Cancel
