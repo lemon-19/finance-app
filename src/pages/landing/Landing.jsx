@@ -356,50 +356,14 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12 fade-up">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
-                  <Wallet size={18} className="text-white" />
-                </div>
-                <span className="text-white font-bold">Finance App</span>
-              </div>
-              <p className="text-sm">Your trusted partner in financial wellness.</p>
-            </div>
-            
-            <div>
-              <h4 className="text-white font-semibold mb-4">Product</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button className="hover:text-white transition">Features</button></li>
-                <li><button className="hover:text-white transition">Pricing</button></li>
-                <li><button className="hover:text-white transition">Security</button></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="text-white font-semibold mb-4">Company</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button className="hover:text-white transition">About Us</button></li>
-                <li><button className="hover:text-white transition">Contact</button></li>
-                <li><button className="hover:text-white transition">Support</button></li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="text-white font-semibold mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm">
-                <li><button className="hover:text-white transition">Privacy Policy</button></li>
-                <li><button className="hover:text-white transition">Terms of Service</button></li>
-                <li><button className="hover:text-white transition">Cookie Policy</button></li>
-              </ul>
-            </div>
-          </div>
-          
-          <div className="border-t border-gray-800 pt-8 text-center text-sm">
-            <p>&copy; {year} Finance App. All rights reserved. Made with ❤️ in the Philippines</p>
-          </div>
+      <footer className="py-8 bg-gray-900 border-t border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-400">
+          <p className="mb-2">
+            © 2025 Lemon Sandicho. Built with React, Tailwind CSS and Firebase.
+          </p>
+          <p className="text-sm">
+            Crafted with passion and attention to detail.
+          </p>
         </div>
       </footer>
     </div>
