@@ -10,14 +10,13 @@ export const addIncome = async (uid, type, amount, description, dueDate = null) 
       type,
       amount,
       description,
-      dueDate: dueDate ? Timestamp.fromDate(new Date(dueDate)) : null,
+      dueDate: dueDate ? Timestamp.fromDate(new Date(dueDate)) : null, // standardize
       createdAt: Timestamp.now(),
     });
 
     // If the income is a Loan/Debt, create a corresponding bill
     if (type.toLowerCase() === "loan" || type.toLowerCase() === "debt") {
       await addBill(uid, `Loan: ${description || type}`, amount, dueDate, "Loan"); 
-      // category here can be "Loan" or whatever your bills categories are
     }
 
     return docRef.id;
@@ -27,23 +26,6 @@ export const addIncome = async (uid, type, amount, description, dueDate = null) 
 };
 
 // Get incomes
-// export const getIncome = async (uid) => {
-//   try {
-//     const q = query(collection(db, "income"), where("uid", "==", uid), orderBy("createdAt", "desc"));
-//     const snapshot = await getDocs(q);
-//     return snapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data,
-//         dueDate: data.dueDate ? data.dueDate.toDate() : null, // convert Timestamp to JS Date
-//       };
-//     });
-//   } catch (error) {
-//     console.error("Error fetching income:", error);
-//   }
-// };
-
 export const getIncome = async (uid, { startDate = null, endDate = null } = {}) => {
   try {
     let q = query(
@@ -63,7 +45,7 @@ export const getIncome = async (uid, { startDate = null, endDate = null } = {}) 
         id: doc.id,
         ...data,
         createdAt: data.createdAt.toDate(),
-        dueDate: data.dueDate ? data.dueDate.toDate() : null,
+        dueDate: data.dueDate ? data.dueDate.toDate() : null, // convert Timestamp to JS Date
       };
     });
   } catch (error) {
@@ -71,15 +53,13 @@ export const getIncome = async (uid, { startDate = null, endDate = null } = {}) 
   }
 };
 
-
-
 // Update income
 export const updateIncome = async (id, data) => {
   try {
     const incomeRef = doc(db, "income", id);
     const updatedData = {
       ...data,
-      dueDate: data.dueDate ? Timestamp.fromDate(new Date(data.dueDate)) : null,
+      dueDate: data.dueDate ? Timestamp.fromDate(new Date(data.dueDate)) : null, // standardize
     };
     await updateDoc(incomeRef, updatedData);
   } catch (error) {

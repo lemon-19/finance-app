@@ -8,9 +8,9 @@ export const addBill = async (uid, name, amount, dueDate, category) => {
       uid,
       name,
       amount,
-      dueDate,
+      dueDate: dueDate ? Timestamp.fromDate(new Date(dueDate)) : null, // standardize as Timestamp
       category,
-      status: "unpaid",   // ← NEW
+      status: "unpaid",
       createdAt: Timestamp.now(),
     });
     return docRef.id;
@@ -19,7 +19,7 @@ export const addBill = async (uid, name, amount, dueDate, category) => {
   }
 };
 
-//Mark a bill as paid
+// Mark a bill as paid
 export const markBillAsPaid = async (id) => {
   try {
     const billRef = doc(db, "bills", id);
@@ -29,18 +29,7 @@ export const markBillAsPaid = async (id) => {
   }
 };
 
-
 // Get bills
-// export const getBills = async (uid) => {
-//   try {
-//     const q = query(collection(db, "bills"), where("uid", "==", uid), orderBy("dueDate"));
-//     const snapshot = await getDocs(q);
-//     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-//   } catch (error) {
-//     console.error("Error fetching bills:", error);
-//   }
-// };
-
 export const getBills = async (uid) => {
   try {
     const q = query(
@@ -53,15 +42,10 @@ export const getBills = async (uid) => {
 
     return snapshot.docs.map(doc => {
       const data = doc.data();
-
       return {
         id: doc.id,
         ...data,
-        dueDate: data.dueDate
-          ? data.dueDate.toDate
-            ? data.dueDate.toDate()        // Firestore Timestamp
-            : new Date(data.dueDate)       // Your string "2025-11-28"
-          : null,
+        dueDate: data.dueDate ? data.dueDate.toDate() : null, // convert Timestamp to JS Date
       };
     });
   } catch (error) {
@@ -69,13 +53,15 @@ export const getBills = async (uid) => {
   }
 };
 
-
-
 // Update bill
 export const updateBill = async (id, data) => {
   try {
     const billRef = doc(db, "bills", id);
-    await updateDoc(billRef, data);
+    const updatedData = {
+      ...data,
+      dueDate: data.dueDate ? Timestamp.fromDate(new Date(data.dueDate)) : null, // standardize
+    };
+    await updateDoc(billRef, updatedData);
   } catch (error) {
     console.error("Error updating bill:", error);
   }
